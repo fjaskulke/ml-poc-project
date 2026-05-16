@@ -1,97 +1,78 @@
 """
 metrics.py — Métriques d'évaluation pour le clustering
 Projet : Segmentation client par analyse RFM
+
+Contrat imposé :
+    compute_metrics(y_true, y_pred) doit retourner dict[str, float]
 """
 
+from __future__ import annotations
+from typing import Any
+
 import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.metrics import silhouette_score
 from sklearn.cluster import KMeans
 
 
-# ─────────────────────────────────────────
-# 1. SILHOUETTE SCORE
-# ─────────────────────────────────────────
+# ── Contrat imposé par le prof ──────────────────────────────────────────────
 
-def compute_silhouette(X: np.ndarray, labels: np.ndarray) -> float:
+def compute_metrics(y_true: Any, y_pred: Any) -> dict[str, float]:
+    """Return the metrics used to compare model performance.
+
+    Pour le clustering non-supervisé :
+    - y_true : array des features normalisées (X) — utilisé pour calculer
+               le Silhouette Score (pas de vérité terrain)
+    - y_pred : array des labels de clusters assignés par le modèle
+
+    Expected return value:
+        A dictionary mapping metric names to numeric values, for example:
+        ``{"silhouette_score": 0.45, "inertia": 1234.5}``.
+
+    Constraints:
+    - Every value must be numeric and convertible to ``float``.
+    - Use the same metric set for every model so results remain comparable.
+    - Keep metric names stable because they are written to
+      ``results/model_metrics.csv``.
     """
-    Calcule le Silhouette Score pour évaluer la qualité du clustering.
+    y_pred = np.array(y_pred)
+    X      = np.array(y_true)   # convention : y_true = X (features)
 
-    Interprétation :
-        +1  → clusters parfaitement séparés et cohésifs
-         0  → clusters qui se chevauchent
-        -1  → points mal assignés à leur cluster
+    metrics = {}
 
-    Args:
-        X      : array numpy des features normalisées (n_samples, n_features)
-        labels : array des labels de clusters assignés
+    # Silhouette Score
+    if len(set(y_pred)) >= 2:
+        metrics['silhouette_score'] = float(silhouette_score(X, y_pred))
+    else:
+        metrics['silhouette_score'] = 0.0
 
-    Returns:
-        score : float entre -1 et 1
-    """
-    if len(set(labels)) < 2:
-        print("[silhouette] Attention : moins de 2 clusters, score non calculable.")
-        return None
+    # Inertie (WCSS) — calculée manuellement pour être indépendante du modèle
+    unique_labels = np.unique(y_pred)
+    centers = np.array([X[y_pred == k].mean(axis=0) for k in unique_labels])
+    inertia = float(sum(
+        np.sum((X[y_pred == k] - centers[i]) ** 2)
+        for i, k in enumerate(unique_labels)
+    ))
+    metrics['inertia'] = inertia
 
-    score = silhouette_score(X, labels)
-    print(f"[silhouette] Score : {score:.4f}")
-    return score
+    # Nombre de clusters
+    metrics['n_clusters'] = float(len(unique_labels))
 
-
-# ─────────────────────────────────────────
-# 2. INERTIE (WCSS)
-# ─────────────────────────────────────────
-
-def compute_inertia(X: np.ndarray, labels: np.ndarray, centers: np.ndarray) -> float:
-    """
-    Calcule l'inertie (Within-Cluster Sum of Squares).
-
-    L'inertie mesure la compacité des clusters :
-    plus elle est faible, plus les points sont proches de leur centroïde.
-    Utilisée pour la méthode du coude (Elbow Method).
-
-    Args:
-        X       : array des features normalisées
-        labels  : labels de clusters
-        centers : centroïdes des clusters
-
-    Returns:
-        inertia : float
-    """
-    inertia = sum(
-        np.sum((X[labels == k] - centers[k]) ** 2)
-        for k in range(len(centers))
-    )
-    print(f"[inertia] Inertie : {inertia:.4f}")
-    return inertia
+    print(f"[compute_metrics] {metrics}")
+    return metrics
 
 
-# ─────────────────────────────────────────
-# 3. ELBOW METHOD
-# ─────────────────────────────────────────
+# ── Fonctions utilitaires supplémentaires ───────────────────────────────────
 
 def elbow_method(X: np.ndarray, k_range: range = range(2, 11),
                  random_state: int = 42) -> dict:
     """
     Applique la méthode du coude pour trouver le K optimal.
-
-    Pour chaque valeur de K, entraîne un K-Means et enregistre
-    l'inertie et le Silhouette Score.
-
-    Args:
-        X            : array des features normalisées
-        k_range      : plage de valeurs K à tester (défaut 2 à 10)
-        random_state : graine aléatoire pour reproductibilité
-
-    Returns:
-        results : dict avec clés 'k', 'inertia', 'silhouette'
+    Retourne un dict avec les listes de K, inertie et silhouette.
     """
-    inertias    = []
-    silhouettes = []
-    k_values    = list(k_range)
+    inertias, silhouettes, k_values = [], [], list(k_range)
 
-    print("[elbow] Test des valeurs de K...")
+    print("[elbow_method] Test des valeurs de K...")
     for k in k_values:
         km = KMeans(n_clusters=k, random_state=random_state, n_init=10)
         km.fit(X)
@@ -100,45 +81,25 @@ def elbow_method(X: np.ndarray, k_range: range = range(2, 11),
         silhouettes.append(sil)
         print(f"  K={k} | Inertie={km.inertia_:.1f} | Silhouette={sil:.4f}")
 
-    results = {
-        'k':          k_values,
-        'inertia':    inertias,
-        'silhouette': silhouettes
-    }
-    return results
+    return {'k': k_values, 'inertia': inertias, 'silhouette': silhouettes}
 
-
-# ─────────────────────────────────────────
-# 4. VISUALISATION ELBOW + SILHOUETTE
-# ─────────────────────────────────────────
 
 def plot_elbow_silhouette(results: dict) -> None:
-    """
-    Affiche les courbes Elbow (inertie) et Silhouette Score
-    pour choisir le K optimal visuellement.
-
-    Args:
-        results : dict retourné par elbow_method()
-    """
+    """Visualise les courbes Elbow et Silhouette Score."""
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
 
-    # Courbe Elbow
-    axes[0].plot(results['k'], results['inertia'],
-                 marker='o', color='steelblue', linewidth=2)
+    axes[0].plot(results['k'], results['inertia'], marker='o', color='steelblue', linewidth=2)
     axes[0].set_title('Méthode du Coude (Elbow)', fontweight='bold')
     axes[0].set_xlabel('Nombre de clusters K')
     axes[0].set_ylabel('Inertie (WCSS)')
     axes[0].grid(True, alpha=0.3)
 
-    # Courbe Silhouette
-    axes[1].plot(results['k'], results['silhouette'],
-                 marker='o', color='coral', linewidth=2)
+    axes[1].plot(results['k'], results['silhouette'], marker='o', color='coral', linewidth=2)
     axes[1].set_title('Silhouette Score par K', fontweight='bold')
     axes[1].set_xlabel('Nombre de clusters K')
     axes[1].set_ylabel('Silhouette Score')
     axes[1].grid(True, alpha=0.3)
 
-    # Meilleur K selon Silhouette
     best_k = results['k'][np.argmax(results['silhouette'])]
     best_s = max(results['silhouette'])
     axes[1].axvline(x=best_k, color='green', linestyle='--', alpha=0.7,
@@ -147,52 +108,32 @@ def plot_elbow_silhouette(results: dict) -> None:
 
     plt.tight_layout()
     plt.show()
-    print(f"[plot] Meilleur K selon Silhouette : {best_k} (score={best_s:.4f})")
+    print(f"[plot] Meilleur K : {best_k} (silhouette={best_s:.4f})")
 
 
-# ─────────────────────────────────────────
-# 5. RAPPORT DE CLUSTERING
-# ─────────────────────────────────────────
-
-def cluster_report(rfm: pd.DataFrame, labels: np.ndarray) -> pd.DataFrame:
-    """
-    Génère un rapport descriptif par cluster avec les moyennes RFM.
-
-    Args:
-        rfm    : DataFrame RFM brut (non normalisé)
-        labels : labels de clusters assignés
-
-    Returns:
-        report : DataFrame avec statistiques par cluster
-    """
+def cluster_report(rfm, labels: np.ndarray):
+    """Génère un rapport descriptif par cluster."""
+    import pandas as pd
     rfm = rfm.copy()
     rfm['Cluster'] = labels
-
     report = rfm.groupby('Cluster').agg(
-        Nb_clients = ('Customer ID', 'count'),
-        Recency_mean   = ('Recency',   'mean'),
-        Frequency_mean = ('Frequency', 'mean'),
-        Monetary_mean  = ('Monetary',  'mean'),
-        Monetary_sum   = ('Monetary',  'sum')
+        Nb_clients     = ('Customer ID', 'count'),
+        Recency_mean   = ('Recency',     'mean'),
+        Frequency_mean = ('Frequency',   'mean'),
+        Monetary_mean  = ('Monetary',    'mean'),
     ).round(2)
-
     report['Pct_clients'] = (report['Nb_clients'] / report['Nb_clients'].sum() * 100).round(1)
-
     print("\n=== Rapport par cluster ===")
     print(report.to_string())
     return report
 
 
-# ─────────────────────────────────────────
-# TEST RAPIDE
-# ─────────────────────────────────────────
-
 if __name__ == '__main__':
     import sys
-    sys.path.append('..')
-    from src.data import full_pipeline
+    sys.path.append('.')
+    from data import full_pipeline
 
-    rfm, rfm_scaled, scaler = full_pipeline('../data/online_retail_II.csv')
+    rfm, rfm_scaled, scaler = full_pipeline()
     X = rfm_scaled[['R_scaled', 'F_scaled', 'M_scaled']].values
 
     results = elbow_method(X, k_range=range(2, 8))
