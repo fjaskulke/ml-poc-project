@@ -321,4 +321,3 @@ data/*.csv
 __pycache__/
 .ipynb_checkpoints/
 *.pyc
-models/*.pkl
