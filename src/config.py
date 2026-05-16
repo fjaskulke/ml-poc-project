@@ -30,12 +30,24 @@ MODEL_METRICS_FILE = RESULTS_DIR / "model_metrics.csv"
 STREAMLIT_HOST = "localhost"
 STREAMLIT_PORT = 8501
 
-# Students must replace this example with their trained models.
-# Each entry must point to a serialized model saved as `.joblib`, `.pkl`, or `.pickle`.
+# ── Modèles entraînés ──────────────────────────────────────────────────────
+# Trois modèles de clustering RFM : K-Means, DBSCAN, Agglomerative Clustering
+# Chaque modèle est sérialisé en .pkl dans le dossier models/
+
 MODELS = {
-    "model_a": {
-        "name": "Model A",
-        "description": "A simple baseline model.",
-        "path": MODELS_DIR / "model_a.pkl",
+    "kmeans": {
+        "name": "K-Means (K=4)",
+        "description": "Clustering par partitionnement. Divise les clients en K=4 groupes en minimisant l'inertie intra-cluster. Algorithme de référence pour la segmentation RFM.",
+        "path": MODELS_DIR / "kmeans.pkl",
+    },
+    "dbscan": {
+        "name": "DBSCAN",
+        "description": "Clustering par densité. Identifie des clusters de forme arbitraire et détecte automatiquement les outliers (bruit). Ne nécessite pas de spécifier K à l'avance.",
+        "path": MODELS_DIR / "dbscan.pkl",
+    },
+    "agglomerative": {
+        "name": "Agglomerative Clustering (Ward)",
+        "description": "Clustering hiérarchique ascendant avec linkage Ward. Construit un dendrogramme permettant de choisir le nombre de clusters a posteriori.",
+        "path": MODELS_DIR / "agglomerative.pkl",
     },
 }
