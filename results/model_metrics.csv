@@ -1,0 +1,4 @@
+Modèle,Silhouette,Inertie,Nb clusters
+K-Means (K=4),0.3696,4696.95,4
+DBSCAN,0.2382,11458.29,2
+Agglomerative (Ward),0.3238,5247.96,4
